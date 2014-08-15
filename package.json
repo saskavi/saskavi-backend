@@ -1,0 +1,18 @@
+{
+  "name": "saskavi-backend",
+  "version": "0.0.1",
+  "description": "Saskavi depoy manager and request handler",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Thomas Hansen & Uday Verma",
+  "license": "MIT",
+  "dependencies": {
+    "dockerode": "~2.0.2",
+    "ferb": "0.0.2",
+    "debug": "~1.0.4",
+    "node-uuid": "~1.4.1",
+    "tar.gz": "~0.1.1"
+  }
+}

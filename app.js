@@ -21,14 +21,14 @@ var cp = require('child_process');
 
 	var ferb = require("ferb")();
 	var debug = require("debug")("saskavi:deloy");
-	var Docker = require("dockerode");
 
-	var docker = new Docker({
-		protocol: 'http',
-		host: '192.168.59.103',
-		port: 2375
-	});
-
+	var validateEnv = function() {
+		var keys = ["SASKAVI_RUNNER_UID", "SASKAVI_RUNNER_GID"];
+		keys.forEach(function(k) {
+			if (!process.env[k])
+				throw new Error("Environment variable required: " + k)
+		});
+	}
 
 	var extractStream = function(stream, cb) {
 		var staging = '/tmp';
@@ -102,8 +102,8 @@ var cp = require('child_process');
 
 				var p = cp.spawn("saskavi", ["run"], {
 					cwd: dirname,
-					uid: 1002,
-					gid: 1002
+					uid: process.env["SASKAVI_RUNNER_UID"],
+					gid: process.env["SASKAVI_RUNNER_GID"]
 				});
 
 				p.on('close', function() {
@@ -142,6 +142,8 @@ var cp = require('child_process');
 		checkProcess(pid);
 		res.json({status: true});
 	});
+
+	validateEnv();
 
 	ferb.listen(16000, function() {
 		debug("Server is now listening for deploy requests");

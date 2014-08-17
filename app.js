@@ -102,8 +102,8 @@ var cp = require('child_process');
 
 				var p = cp.spawn("saskavi", ["run"], {
 					cwd: dirname,
-					uid: process.env["SASKAVI_RUNNER_UID"],
-					gid: process.env["SASKAVI_RUNNER_GID"]
+					uid: parseInt(process.env["SASKAVI_RUNNER_UID"]),
+					gid: parseInt(process.env["SASKAVI_RUNNER_GID"])
 				});
 
 				p.on('close', function() {

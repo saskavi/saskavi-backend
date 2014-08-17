@@ -129,6 +129,20 @@ var cp = require('child_process');
 		});
 	});
 
+	ferb.post("/kill", function(req, res) {
+		var pid = req.headers['x-saskavi-id'];
+		if (!pid || !processes[pid])
+			return res.json(405, {
+				status: false,
+				message: "Invalid saskavi id"
+			});
+
+		debug("Process to kill:", pid);
+
+		checkProcess(pid);
+		res.json({status: true});
+	});
+
 	ferb.listen(16000, function() {
 		debug("Server is now listening for deploy requests");
 	});

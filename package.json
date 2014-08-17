@@ -9,10 +9,11 @@
   "author": "Thomas Hansen & Uday Verma",
   "license": "MIT",
   "dependencies": {
+    "debug": "~1.0.4",
     "dockerode": "~2.0.2",
     "ferb": "0.0.2",
-    "debug": "~1.0.4",
     "node-uuid": "~1.4.1",
+    "rimraf": "^2.2.8",
     "tar.gz": "~0.1.1"
   }
 }

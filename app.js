@@ -28,7 +28,7 @@ var cp = require('child_process');
 			if (!process.env[k])
 				throw new Error("Environment variable required: " + k)
 		});
-	}
+	};
 
 	var extractStream = function(stream, cb) {
 		var staging = '/tmp';
@@ -83,58 +83,81 @@ var cp = require('child_process');
 		}
 	};
 
+	var loadPackageInfo = function(dir, cb) {
+		var file = path.join(dir, 'package.json');
+		fs.exists(file, function(exists) {
+			if (!exists) return cb(new Error("No package info is available"));
+
+			fs.readFile(file, function(err, data) {
+				if (err) return cb(err);
+				cb(null, JSON.parse(data));
+			});
+		});
+	};
+
 	ferb.post("/deploy", function(req, res) {
-		var pid = req.headers['x-saskavi-id'];
-		checkProcess(pid);
-			
 		extractStream(req, function(err, dirname) {
 			if (err)
 				return res.json(500, {status: false, message: err.message});
 
-			cp.exec("npm install", {
-				cwd: dirname
-			}, function(err, stdout, stderr) {
+			loadPackageInfo(dirname, function(err, info) {
 				if (err)
-					return res.json({status: false, message: err.message});
+					return res.json(405, {
+						status: false,
+						message: "The deployed archive doesn't look like a node.js package"});
 
-				debug("npm install finished on", dirname);
-				debug("Now spawning process...");
+				if (!info.saskavi || !info.saskavi.firebase)
+					return res.json(405, {
+						status: false,
+						message: "The deployed archive has a package.json but no saskavi information in it"});
 
-				var p = cp.spawn("saskavi", ["run"], {
-					cwd: dirname,
-					uid: parseInt(process.env["SASKAVI_RUNNER_UID"]),
-					gid: parseInt(process.env["SASKAVI_RUNNER_GID"])
-				});
+				var fbId = info.saskavi.firebase;
+				debug("Firebase ID for deployment:", fbId);
 
-				p.on('close', function() {
-					debug("Process closed for", dirname);
-					rimraf(path.dirname(dirname), function(err) {
-						if (err)
-							return debug("cleanup failed for", dirname, err);
+				checkProcess(fbId);
 
-						debug("cleanup complete for", dirname);
+				cp.exec("npm install", {
+					cwd: dirname
+				}, function(err, stdout, stderr) {
+					if (err)
+						return res.json({status: false, message: err.message});
+
+					debug("npm install finished on", dirname);
+					debug("Now spawning process...");
+
+					var p = cp.spawn("saskavi", ["run"], {
+						cwd: dirname,
+						uid: parseInt(process.env["SASKAVI_RUNNER_UID"]),
+						gid: parseInt(process.env["SASKAVI_RUNNER_GID"])
 					});
-				});
 
-				var id = pid ? pid : uuid.v4();
+					p.on('close', function() {
+						debug("Process closed for", dirname);
+						rimraf(path.dirname(dirname), function(err) {
+							if (err)
+								return debug("cleanup failed for", dirname, err);
 
-				processes[id] = p;
+							debug("cleanup complete for", dirname);
+						});
+					});
 
-				debug("Process spawned, assigned id:", id);
-				res.json({
-					status: true,
-					id: id
+					processes[fbId] = p;
+
+					debug("Process spawned, assigned id:", fbId);
+					res.json({
+						status: true,
+					});
 				});
 			});
 		});
 	});
 
 	ferb.post("/kill", function(req, res) {
-		var pid = req.headers['x-saskavi-id'];
+		var pid = req.headers['x-saskavi-kill-id'];
 		if (!pid || !processes[pid])
 			return res.json(405, {
 				status: false,
-				message: "Invalid saskavi id"
+				message: "Unknown saskavi session"
 			});
 
 		debug("Process to kill:", pid);

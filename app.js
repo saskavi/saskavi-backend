@@ -106,12 +106,12 @@ var cp = require('child_process');
 						status: false,
 						message: "The deployed archive doesn't look like a node.js package"});
 
-				if (!info.saskavi || !info.saskavi.firebase)
+				if (!info.saskavi)
 					return res.json(405, {
 						status: false,
 						message: "The deployed archive has a package.json but no saskavi information in it"});
 
-				var fbId = info.saskavi.firebase;
+				var fbId = info.saskavi;
 				debug("Firebase ID for deployment:", fbId);
 
 				checkProcess(fbId);

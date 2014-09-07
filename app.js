@@ -11,6 +11,7 @@ var path = require('path');
 var fs = require('fs');
 var rimraf = require('rimraf');
 
+var pm2 = require('pm2');
 var cp = require('child_process');
 
 
@@ -67,21 +68,33 @@ var cp = require('child_process');
 		});
 	};
 
-	var checkProcess = function(pid) {
-		if (!pid || !processes[pid])
-			return;
+    var killProcess = function(name, cb) {
+        pm2.connect(function(err) {
+            if (err) return cb(err);
 
-		var p = processes[pid];
-		delete processes[pid];
+            pm2.describe(name, function(err, list) {
+                if (err) return cb(err);
+                if (list.length === 0) return cb(new Error("Not found"));
 
-		try {
-			debug("Trying to kill existing process for id:", pid);
-			p.kill();
-		}
-		catch(e) {
-			debug("Tried to kill process, but:", e);
-		}
-	};
+                var p = list[0];
+                var dn = p.pm2_env.cwd;
+
+                debug("Killing process with name:", name, p.pm_id);
+
+                pm2.delete(p.pm_id, function(err, proc) {
+                    if (err) return cb(err);
+
+                    rimraf(path.dirname(dn), function(err) {
+                        if (err)
+                            return debug("cleanup failed for", dn, err);
+                        debug("cleanup complete for", dn);
+                    });
+
+                    cb();
+                });
+            });
+        })
+    }
 
 	var loadPackageInfo = function(dir, cb) {
 		var file = path.join(dir, 'package.json');
@@ -112,58 +125,53 @@ var cp = require('child_process');
 						message: "The deployed archive has a package.json but no saskavi information in it"});
 
 				var fbId = info.saskavi;
-				debug("Firebase ID for deployment:", fbId);
+				debug("APP ID for deployment:", fbId);
 
-				checkProcess(fbId);
+                killProcess(fbId, function() {
+                    // Make sure stuff's setup right
+                    cp.exec("npm install", {
+                        cwd: dirname
+                    }, function(err, stdout, stderr) {
+                        if (err)
+                            return res.json({status: false, message: err.message});
 
-				cp.exec("npm install", {
-					cwd: dirname
-				}, function(err, stdout, stderr) {
-					if (err)
-						return res.json({status: false, message: err.message});
+                        debug("npm install finished on", dirname);
+                        debug("Now spawning process...");
 
-					debug("npm install finished on", dirname);
-					debug("Now spawning process...");
+                        var runner = process.env["SASKAVI_BIN"] || "/usr/bin/saskavi";
 
-					var p = cp.spawn("saskavi", ["run"], {
-						cwd: dirname,
-						uid: parseInt(process.env["SASKAVI_RUNNER_UID"]),
-						gid: parseInt(process.env["SASKAVI_RUNNER_GID"])
-					});
+                        var uid = parseInt(process.env["SASKAVI_RUNNER_UID"]),
+                            gid = parseInt(process.env["SASKAVI_RUNNER_GID"]);
 
-					p.on('close', function() {
-						debug("Process closed for", dirname);
-						rimraf(path.dirname(dirname), function(err) {
-							if (err)
-								return debug("cleanup failed for", dirname, err);
+                        debug("Ownership params:", uid, gid);
 
-							debug("cleanup complete for", dirname);
-						});
-					});
-
-					processes[fbId] = p;
-
-					debug("Process spawned, assigned id:", fbId);
-					res.json({
-						status: true,
-					});
-				});
+                        // setup process
+                        pm2.connect(function() {
+                            pm2.start(runner, {
+                                scriptArgs: ["run"],
+                                name: fbId,
+                                cwd: dirname,
+                                runAsUser: uid,
+                                runAsGroup: gid
+                            }, function(err, proc) {
+                                if (err) return res.json({status: false, message: err.message});
+                                return res.json({status: true});
+                            });
+                        })
+                    });
+                });
 			});
 		});
 	});
 
 	ferb.post("/kill", function(req, res) {
 		var pid = req.headers['x-saskavi-kill-id'];
-		if (!pid || !processes[pid])
-			return res.json(405, {
-				status: false,
-				message: "Unknown saskavi session"
-			});
-
 		debug("Process to kill:", pid);
 
-		checkProcess(pid);
-		res.json({status: true});
+        killProcess(pid, function(err) {
+            if (err) return res.json({status: false, message: err.message});
+            res.json({status: true});
+        })
 	});
 
 	validateEnv();

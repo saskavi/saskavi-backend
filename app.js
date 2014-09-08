@@ -144,6 +144,7 @@ var cp = require('child_process');
                             gid = parseInt(process.env["SASKAVI_RUNNER_GID"]);
 
                         debug("Ownership params:", uid, gid);
+                        debug("Target directory is:", dirname);
 
                         // setup process
                         pm2.connect(function() {

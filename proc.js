@@ -7,17 +7,16 @@ var path = require('path');
 var fs = require('fs');
 var rimraf = require('rimraf');
 
+var util = require('./util');
 
-var clearDir = function(dir, cb) {
-    fs.exists(dir, function(exists) {
-        if (exists)
-            return rimraf(dir, cb);
-        cb();
-    });
-};
+
+
+var svcpath = function(name) {
+    return path.join(process.env["SASKAVI_SVC_ROOT"], name);
+}
 
 var kill = function(name, cb) {
-    var svc = path.join(process.env["HOME"], "svc", name);
+    var svc = svcpath(name);
     console.log(svc);
     cp.exec("sv status " + svc, function(err, stdout, stderr) {
         if (err) return cb(new Error("No such service"));
@@ -25,7 +24,7 @@ var kill = function(name, cb) {
         cp.exec("sv shutdown " + svc, function(err, stdout, stderr) {
             if (err) return cb(new Error("Could not terminate process"));
 
-            clearDir(svc, function(err) {
+            util.clearDir(svc, function(err) {
                 if (err) return cb(new Error("Could not cleanup old state"));
                 cb();
             });
@@ -39,8 +38,8 @@ var start = function(name, dir, cb) {
     cp.exec("npm install", { cwd: dir }, function(err, stderr, stdout) {
         if (err) return cb(err);
 
-        var svcDir = path.join(process.env["HOME"], "svc", name);
-        clearDir(svcDir, function(err) {
+        var svcDir = svcpath(name);
+        util.clearDir(svcDir, function(err) {
             if (err) return cb(err);
             cp.exec("mkdir " + svcDir, function(err, stderr, stdout) {
                 if (err) return cb(err);
@@ -50,6 +49,7 @@ var start = function(name, dir, cb) {
                     "#!/bin/sh",
                     "#",
                     "cd " + dir,
+                    "exec 2<&1",
                     "exec saskavi run"
                 ];
 

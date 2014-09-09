@@ -14,6 +14,8 @@ var rimraf = require('rimraf');
 var pm2 = require('pm2');
 var cp = require('child_process');
 
+var proc = require('./proc');
+
 
 (function() {
 	"use strict";
@@ -24,11 +26,6 @@ var cp = require('child_process');
 	var debug = require("debug")("saskavi:deloy");
 
 	var validateEnv = function() {
-		var keys = ["SASKAVI_RUNNER_UID", "SASKAVI_RUNNER_GID"];
-		keys.forEach(function(k) {
-			if (!process.env[k])
-				throw new Error("Environment variable required: " + k)
-		});
 	};
 
 	var extractStream = function(stream, cb) {
@@ -69,31 +66,7 @@ var cp = require('child_process');
 	};
 
     var killProcess = function(name, cb) {
-        pm2.connect(function(err) {
-            if (err) return cb(err);
-
-            pm2.describe(name, function(err, list) {
-                if (err) return cb(err);
-                if (list.length === 0) return cb(new Error("Not found"));
-
-                var p = list[0];
-                var dn = p.pm2_env.cwd;
-
-                debug("Killing process with name:", name, p.pm_id);
-
-                pm2.delete(p.pm_id, function(err, proc) {
-                    if (err) return cb(err);
-
-                    rimraf(path.dirname(dn), function(err) {
-                        if (err)
-                            return debug("cleanup failed for", dn, err);
-                        debug("cleanup complete for", dn);
-                    });
-
-                    cb();
-                });
-            });
-        })
+        proc.kill(name, cb);
     }
 
 	var loadPackageInfo = function(dir, cb) {
@@ -138,27 +111,10 @@ var cp = require('child_process');
                         debug("npm install finished on", dirname);
                         debug("Now spawning process...");
 
-                        var runner = process.env["SASKAVI_BIN"] || "/usr/bin/saskavi";
-
-                        var uid = parseInt(process.env["SASKAVI_RUNNER_UID"]),
-                            gid = parseInt(process.env["SASKAVI_RUNNER_GID"]);
-
-                        debug("Ownership params:", uid, gid);
-                        debug("Target directory is:", dirname);
-
-                        // setup process
-                        pm2.connect(function() {
-                            pm2.start(runner, {
-                                scriptArgs: ["run"],
-                                name: fbId,
-                                cwd: dirname,
-                                runAsUser: uid,
-                                runAsGroup: gid
-                            }, function(err, proc) {
-                                if (err) return res.json({status: false, message: err.message});
-                                return res.json({status: true});
-                            });
-                        })
+                        proc.start(fbId, dirname, function(err) {
+                            if (err) return res.json({status: false, message: err.message});
+                            res.json({status: true});
+                        });
                     });
                 });
 			});

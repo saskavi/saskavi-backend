@@ -11,7 +11,6 @@ var path = require('path');
 var fs = require('fs');
 var rimraf = require('rimraf');
 
-var pm2 = require('pm2');
 var cp = require('child_process');
 
 var proc = require('./proc');
